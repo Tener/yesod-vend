@@ -1,5 +1,5 @@
 Name:                yesod-vend
-Version:             0.1
+Version:             0.2.0.0
 Synopsis:            Simple CRUD classes for easy view creation for Yesod
 Description:         Simple CRUD classes for easy view creation for Yesod. See @Yesod.VEND@ for more informations and description how to use it.
 License:             BSD3
@@ -32,4 +32,12 @@ Executable vend-test-user
                       , blaze-html
                       , hamlet
                       , yesod
+  -- hack around missing -lpthread in persistent-sqlite
   Ghc-options: -optl-pthread
+
+Homepage: https://github.com/Tener/yesod-vend
+Bug-Reports: https://github.com/Tener/yesod-vend/issues
+
+Source-Repository head
+  Type: git
+  Location: https://github.com/Tener/yesod-vend.git
