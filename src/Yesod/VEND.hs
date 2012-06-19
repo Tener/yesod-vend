@@ -129,12 +129,12 @@ data EntityParam master sub a = forall b . EntityParam { epName :: Text
 -- | We cannot use record syntax to access fields of existential types. Instead we have:
 -- 
 -- >  epGetText (EntityParam _ pGet pToText _) = pToText . pGet
-epGetText :: EntityParam t t1 t2 -> t2 -> Text
+epGetText :: EntityParam master sub a -> a -> Text
 epGetText (EntityParam _ pGet pToText _) = pToText . pGet
 -- | We cannot use record syntax to access fields of existential types. Instead we have:
 -- 
 -- > epGetWidget (EntityParam _ pGet _ pToWidget) = pToWidget . pGet
-epGetWidget :: EntityParam t t1 t2 -> t2 -> GWidget t t1 ()
+epGetWidget :: EntityParam master sub a -> a -> GWidget master sub ()
 epGetWidget (EntityParam _ pGet _ pToWidget) = pToWidget . pGet
 
 -- | Class for accessing entities referenced by 'a' entity type. For example for entities Foo, Bar:
@@ -170,24 +170,26 @@ class EntityDeep a where
     type FullEntT a :: *
     type FullEntT a = a
 
+    type SiteEntT a
+
 
     -- | get 'full' entity from base. default implementation works akin to 'get404'.
-    get404Full :: a -> GHandler master sub (FullEntT a)
+    get404Full :: a -> GHandler master (SiteEntT a) (FullEntT a)
     -- | return 'base' type from 'full' type
     entityCore :: a -> (FullEntT a) -> (EntT a)
     -- | get a list of parameters describing the 'full' type
-    paramsFull :: a -> [EntityParam master sub (FullEntT a)]
+    paramsFull :: a -> [EntityParam master (SiteEntT a) (FullEntT a)]
 
     default entityCore :: (EntT a ~ FullEntT a) => a -> (FullEntT a) -> (EntT a)
     entityCore _ = id
-    default paramsFull :: ((CRUD a), (ValT a ~ FullEntT a)) => a -> [EntityParam master sub (FullEntT a)]
+    default paramsFull :: ((SiteEntT a ~ SiteT a), (CRUD a), (ValT a ~ FullEntT a)) => a -> [EntityParam master (SiteEntT a) (FullEntT a)]
     paramsFull = params
-    default get404Full :: ((YesodPersistBackend sub ~ SqlPersist),
+    default get404Full :: ((YesodPersistBackend (SiteEntT a) ~ SqlPersist),
                            (PersistEntity val0),
-                           (YesodPersist sub),
+                           (YesodPersist (SiteEntT a)),
                            (a ~ Key SqlPersist val0),
                            (val0 ~ FullEntT (Key SqlPersist val0))) => 
-                           a -> GHandler master sub (FullEntT a)
+                           a -> GHandler master (SiteEntT a) (FullEntT a)
     get404Full key = runDB (get404 key)
 
 -- | Given description of entity parameters ('EntityParam' list) and terse/not terse option return a widget displaying the entity.
@@ -202,12 +204,14 @@ $forall ep <- pars
  |]
 
 -- | Core typeclass of this package. Default implementations of handlers use other methods to provide sensible default views. They can be all overriden if needed.
-class (EntityDeep (KeyT a)) => CRUD a where
+class ((SiteEntT (Key SqlPersist (ValT a)) ~ SiteT a),(EntityDeep (KeyT a))) => CRUD a where
     -- * types 
     -- | entity value type
     type ValT a
     -- | entity key type
     type KeyT a
+    -- | site type
+    type SiteT a
 
     -- * stupid methods, we cant just use (undefined :: KeyT a) because of how type families work.
     -- | provide a value of type 'KeyT a'. Default implementation is 'undefined'.
@@ -225,23 +229,23 @@ class (EntityDeep (KeyT a)) => CRUD a where
 
     -- * routes
     -- | route to 'new element'
-    newRt     :: a -> Route site
+    newRt     :: a -> Route (SiteT a)
     -- | route to 'view all elements'
-    viewAllRt :: a -> Route site
+    viewAllRt :: a -> Route (SiteT a)
     -- | route to 'view element'
-    viewRt    :: a -> (KeyT a) -> Route site
+    viewRt    :: a -> (KeyT a) -> Route (SiteT a)
     -- | route to 'delete element'
-    deleteRt  :: a -> (KeyT a) -> Route site
+    deleteRt  :: a -> (KeyT a) -> Route (SiteT a)
     -- | route to 'edit element'
-    editRt    :: a -> (KeyT a) -> Route site
+    editRt    :: a -> (KeyT a) -> Route (SiteT a)
 
     -- * displaying
     -- | provide widget for displaying an element. Bool argument specifies if this is for \"terse\" view or not.
-    displayWidget       :: a -> (ValT a) -> Bool -> GWidget master sub ()
+    displayWidget       :: a -> (ValT a) -> Bool -> GWidget master (SiteT a) ()
     -- | provide widget for displaying element header. Used in 'view all'.
-    displayHeaderWidget :: a -> Bool -> GWidget master sub ()
+    displayHeaderWidget :: a -> Bool -> GWidget master (SiteT a) ()
     -- | simple version of 'paramsFull' only for 'ValT' type.
-    params              :: a -> [EntityParam master sub (ValT a)]
+    params              :: a -> [EntityParam master (SiteT a) (ValT a)]
 
     -- * names
     -- | entity name. this will be changed in future versions to support proper internationalization.
@@ -249,28 +253,28 @@ class (EntityDeep (KeyT a)) => CRUD a where
 
     -- * forms
     -- | form for creating new entity/editing old one.
-    form  :: a -> (Maybe (ValT a)) -> GHandler master sub (Html -> MForm master sub (FormResult (ValT a), (GWidget master sub ())) )
+    form  :: a -> (Maybe (ValT a)) -> GHandler master (SiteT a) (Html -> MForm master (SiteT a) (FormResult (ValT a), (GWidget master (SiteT a) ())) )
     -- | deletion form.
-    dForm :: a -> GHandler master sub (Html -> MForm master sub (FormResult Bool, (GWidget master sub ())))
+    dForm :: a -> GHandler master (SiteT a) (Html -> MForm master (SiteT a) (FormResult Bool, (GWidget master (SiteT a) ())))
 
     -- * handlers
     -- | handler for 'viewRt'
-    viewR    :: a -> (KeyT a) -> GHandler master sub RepHtml
+    viewR    :: a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     -- | handler for 'editRt'
-    editR    :: a -> (KeyT a) -> GHandler master sub RepHtml
+    editR    :: a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     -- | handler for 'newRt'
-    newR     :: a -> GHandler master sub RepHtml
+    newR     :: a -> GHandler master (SiteT a) RepHtml
     -- | handler for 'deleteRt'
-    deleteR  :: a -> (KeyT a) -> GHandler master sub RepHtml
+    deleteR  :: a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     -- | handler for 'viewAllRt'
-    viewAllR :: a -> GHandler master sub RepHtml
+    viewAllR :: a -> GHandler master (SiteT a) RepHtml
 
     -- default implementations
 
-    default params :: (Show (ValT a)) => a -> [EntityParam master sub (ValT a)]
+    default params :: (Show (ValT a)) => a -> [EntityParam master (SiteT a) (ValT a)]
     params _ = [EntityParam "shown" show Data.Text.pack markupToWidget]
 
-    default displayHeaderWidget :: a -> Bool -> GWidget master sub ()
+    default displayHeaderWidget :: a -> Bool -> GWidget master (SiteT a) ()
     displayHeaderWidget this terse | terse = let pars = paramsFull (getSomeKey this) in [whamlet| 
 <tr>
  <th colspan="20"> #{entName this}
@@ -283,7 +287,7 @@ class (EntityDeep (KeyT a)) => CRUD a where
                                   | otherwise = [whamlet|
 <p> #{entName this} |]
 
-    default displayWidget :: a -> (ValT a) -> Bool -> GWidget master sub ()
+    default displayWidget :: a -> (ValT a) -> Bool -> GWidget master (SiteT a) ()
     displayWidget this a terse | terse = [whamlet| 
  $forall ep <- params this
    <td> #{epGetText ep a} |]
@@ -294,21 +298,21 @@ $forall ep <- params this
        <span .param> #{epGetText ep a}
  |]
 
-    default dForm :: (RenderMessage sub FormMessage) =>
-                     a -> GHandler master sub (Html -> MForm master sub (FormResult Bool, (GWidget master sub ())))
+    default dForm :: (RenderMessage (SiteT a) FormMessage) =>
+                     a -> GHandler master (SiteT a) (Html -> MForm master (SiteT a) (FormResult Bool, (GWidget master (SiteT a) ())))
     dForm _this = return $ renderDivs (areq areYouSureField "Are you sure?" (Just False))
         where areYouSureField = check isSure boolField
               isSure False = Left ("You must be sure." :: Text)
               isSure True = Right True
 
 
-    default newR :: ((Yesod sub),
-                     (YesodPersistBackend sub ~ SqlPersist),
-                     (RenderMessage sub FormMessage),
-                     (YesodPersist sub),
+    default newR :: ((Yesod (SiteT a)),
+                     (YesodPersistBackend (SiteT a) ~ SqlPersist),
+                     (RenderMessage (SiteT a) FormMessage),
+                     (YesodPersist (SiteT a)),
                      (KeyT a ~ Key SqlPersist (ValT a)),
                      (PersistEntity (ValT a))) => 
-                     a -> GHandler master sub RepHtml
+                     a -> GHandler master (SiteT a) RepHtml
     newR this = do
       ((result, wg),et) <- runFormPost =<< (form this Nothing)
       let newForm = (wg,et)
@@ -327,13 +331,13 @@ $forall ep <- params this
     ^{fst newForm}
     <input type="submit"> |]
 
-    default viewAllR :: ((YesodPersistBackend sub ~ SqlPersist),
-                         (YesodPersist sub),
-                         (Yesod sub),
+    default viewAllR :: ((YesodPersistBackend (SiteT a) ~ SqlPersist),
+                         (YesodPersist (SiteT a)),
+                         (Yesod (SiteT a)),
                          (EntityDeep (Key SqlPersist (ValT a))), 
                          (PersistEntityBackend (ValT a) ~ SqlPersist), 
                          (KeyT a ~ Key SqlPersist (ValT a)), 
-                         (PersistEntity (ValT a))) => a -> GHandler master sub RepHtml
+                         (PersistEntity (ValT a))) => a -> GHandler master (SiteT a) RepHtml
     viewAllR this = do
       values <- runDB $ selectList [] (viewAllOptions this)
       values'full <- mapM (\ k -> fmap (\ v -> (k,v)) (get404Full k)) (map entityKey values)
@@ -372,7 +376,7 @@ $else
        <a href=@{deleteRt this key}> <strong> Delete </strong>
        |]
 
-    default viewR :: ((Yesod sub), (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master sub RepHtml
+    default viewR :: ((Yesod (SiteT a)), (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     viewR this key = do
       val'full <- get404Full key
       defaultLayout $ do
@@ -387,11 +391,11 @@ $else
     |]
 
     
-    default editR :: ((YesodPersistBackend sub ~ SqlPersist),
-                      (YesodPersist sub),
-                      (Yesod sub),
-                      (RenderMessage sub FormMessage),
-                      (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master sub RepHtml
+    default editR :: ((YesodPersistBackend (SiteT a) ~ SqlPersist),
+                      (YesodPersist (SiteT a)),
+                      (Yesod (SiteT a)),
+                      (RenderMessage (SiteT a) FormMessage),
+                      (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     editR this key = do
       val <- runDB $ get404 key
       ((result,fwidget), enctype) <- runFormPost =<< (form this (Just val))
@@ -414,8 +418,8 @@ $else
     ^{fwidget}
     <input type="submit"> |]
  
-    default deleteR :: ((RenderMessage sub FormMessage), (YesodPersist sub), (YesodPersistBackend sub ~ SqlPersist), (Yesod sub),
-                        (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master sub RepHtml
+    default deleteR :: ((RenderMessage (SiteT a) FormMessage), (YesodPersist (SiteT a)), (YesodPersistBackend (SiteT a) ~ SqlPersist), (Yesod (SiteT a)),
+                        (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     deleteR this key = do
        val'full <- get404Full key
        ((result,fwidget), enctype) <- runFormPost =<< (dForm this)
@@ -446,7 +450,7 @@ getTerse = do
    _ -> True -- this makes terse default
 
 -- | make 'GWidget' from any type that implements 'ToMarkup'
-markupToWidget :: ToMarkup a => a -> GWidget sub master ()
+markupToWidget :: ToMarkup a => a -> GWidget master sub ()
 markupToWidget t = [whamlet|#{t}|]
 
 -- fst3 (v,_,_) = v
