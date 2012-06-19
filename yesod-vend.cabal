@@ -9,6 +9,8 @@ Maintainer:          gtener@gmail.com
 Category:            Web, Yesod
 Build-type:          Simple
 Cabal-version:       >=1.8
+Homepage: https://github.com/Tener/yesod-vend
+Bug-Reports: https://github.com/Tener/yesod-vend/issues
 
 Library
   Exposed-modules:     Yesod.VEND
@@ -34,9 +36,6 @@ Executable vend-test-user
                       , yesod
   -- hack around missing -lpthread in persistent-sqlite
   Ghc-options: -optl-pthread
-
-Homepage: https://github.com/Tener/yesod-vend
-Bug-Reports: https://github.com/Tener/yesod-vend/issues
 
 Source-Repository head
   Type: git
