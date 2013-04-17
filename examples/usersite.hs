@@ -7,6 +7,9 @@ import Yesod.VEND
 import Data.Maybe
 import Data.Text(Text)
 import Control.Applicative
+import Database.Persist.GenericSql.Raw (SqlBackend)
+import Control.Monad.Trans.Resource (runResourceT)
+import Control.Monad.Logger (runNoLoggingT)
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persist|
 User
@@ -76,9 +79,9 @@ instance CRUD UserP where
 
 
 handleUserNewR :: GHandler master VendUserTest RepHtml
-handleUserDeleteR :: Key SqlPersist (UserGeneric SqlPersist) -> GHandler master VendUserTest RepHtml
-handleUserEditR :: Key SqlPersist (UserGeneric SqlPersist) -> GHandler master VendUserTest RepHtml
-handleUserViewR :: Key SqlPersist (UserGeneric SqlPersist) -> GHandler master VendUserTest RepHtml
+handleUserDeleteR :: Key (UserGeneric SqlBackend) -> GHandler master VendUserTest RepHtml
+handleUserEditR :: Key (UserGeneric SqlBackend) -> GHandler master VendUserTest RepHtml
+handleUserViewR :: Key (UserGeneric SqlBackend) -> GHandler master VendUserTest RepHtml
 handleUserViewAllR :: GHandler master VendUserTest RepHtml
 
 handleUserNewR = newR UserP
@@ -102,9 +105,9 @@ openConnectionCount :: Int
 openConnectionCount = 10
 
 main :: IO ()
-main = withSqlitePool "test-usersite.db" openConnectionCount $ \pool -> do
+main = runNoLoggingT $ runResourceT $ withSqlitePool "test-usersite.db" openConnectionCount $ \pool -> do
     runSqlPool (runMigration migrateAll) pool
-    warpDebug 3030 $ VendUserTest pool
+    liftIO $ warpDebug 3030 $ VendUserTest pool
 
 instance RenderMessage VendUserTest FormMessage where
     renderMessage _ _ = defaultFormMessage

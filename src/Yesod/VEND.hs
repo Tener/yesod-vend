@@ -185,10 +185,11 @@ class EntityDeep a where
     default paramsFull :: ((SiteEntT a ~ SiteT a), (CRUD a), (ValT a ~ FullEntT a)) => a -> [EntityParam master (SiteEntT a) (FullEntT a)]
     paramsFull = params
     default get404Full :: ((YesodPersistBackend (SiteEntT a) ~ SqlPersist),
+                           (PersistEntityBackend val0 ~ SqlBackend),
                            (PersistEntity val0),
                            (YesodPersist (SiteEntT a)),
-                           (a ~ Key SqlPersist val0),
-                           (val0 ~ FullEntT (Key SqlPersist val0))) => 
+                           (a ~ KeyBackend SqlBackend val0),
+                           (val0 ~ FullEntT (KeyBackend SqlBackend val0))) => 
                            a -> GHandler master (SiteEntT a) (FullEntT a)
     get404Full key = runDB (get404 key)
 
@@ -204,7 +205,7 @@ $forall ep <- pars
  |]
 
 -- | Core typeclass of this package. Default implementations of handlers use other methods to provide sensible default views. They can be all overriden if needed.
-class ((SiteEntT (Key SqlPersist (ValT a)) ~ SiteT a),(EntityDeep (KeyT a))) => CRUD a where
+class ((SiteEntT (KeyBackend SqlBackend (ValT a)) ~ SiteT a), (PersistEntityBackend (ValT a) ~ SqlBackend), (EntityDeep (KeyT a))) => CRUD a where
     -- * types 
     -- | entity value type
     type ValT a
@@ -310,7 +311,7 @@ $forall ep <- params this
                      (YesodPersistBackend (SiteT a) ~ SqlPersist),
                      (RenderMessage (SiteT a) FormMessage),
                      (YesodPersist (SiteT a)),
-                     (KeyT a ~ Key SqlPersist (ValT a)),
+                     (KeyT a ~ KeyBackend SqlBackend (ValT a)),
                      (PersistEntity (ValT a))) => 
                      a -> GHandler master (SiteT a) RepHtml
     newR this = do
@@ -334,9 +335,9 @@ $forall ep <- params this
     default viewAllR :: ((YesodPersistBackend (SiteT a) ~ SqlPersist),
                          (YesodPersist (SiteT a)),
                          (Yesod (SiteT a)),
-                         (EntityDeep (Key SqlPersist (ValT a))), 
-                         (PersistEntityBackend (ValT a) ~ SqlPersist), 
-                         (KeyT a ~ Key SqlPersist (ValT a)), 
+                         (EntityDeep (KeyBackend SqlBackend (ValT a))), 
+                         (PersistEntityBackend (ValT a) ~ SqlBackend), 
+                         (KeyT a ~ KeyBackend SqlBackend (ValT a)), 
                          (PersistEntity (ValT a))) => a -> GHandler master (SiteT a) RepHtml
     viewAllR this = do
       values <- runDB $ selectList [] (viewAllOptions this)
@@ -376,7 +377,7 @@ $else
        <a href=@{deleteRt this key}> <strong> Delete </strong>
        |]
 
-    default viewR :: ((Yesod (SiteT a)), (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
+    default viewR :: ((Yesod (SiteT a)), (KeyT a ~ KeyBackend SqlBackend (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     viewR this key = do
       val'full <- get404Full key
       defaultLayout $ do
@@ -395,7 +396,7 @@ $else
                       (YesodPersist (SiteT a)),
                       (Yesod (SiteT a)),
                       (RenderMessage (SiteT a) FormMessage),
-                      (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
+                      (KeyT a ~ KeyBackend SqlBackend (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     editR this key = do
       val <- runDB $ get404 key
       ((result,fwidget), enctype) <- runFormPost =<< (form this (Just val))
@@ -419,7 +420,7 @@ $else
     <input type="submit"> |]
  
     default deleteR :: ((RenderMessage (SiteT a) FormMessage), (YesodPersist (SiteT a)), (YesodPersistBackend (SiteT a) ~ SqlPersist), (Yesod (SiteT a)),
-                        (KeyT a ~ Key SqlPersist (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
+                        (KeyT a ~ KeyBackend SqlBackend (ValT a)), (PersistEntity (ValT a))) => a -> (KeyT a) -> GHandler master (SiteT a) RepHtml
     deleteR this key = do
        val'full <- get404Full key
        ((result,fwidget), enctype) <- runFormPost =<< (dForm this)
