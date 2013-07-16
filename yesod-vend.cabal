@@ -1,5 +1,5 @@
 Name:                yesod-vend
-Version:             0.2.0.0
+Version:             0.3.0.0
 Synopsis:            Simple CRUD classes for easy view creation for Yesod
 Description:         Simple CRUD classes for easy view creation for Yesod. See @Yesod.VEND@ for more informations and description how to use it.
 License:             BSD3
